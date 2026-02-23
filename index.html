@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Graspollen" />
+  <title>Graspollen</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      color: #fff;
+    }
+
+    /* ── ANIMATED BACKGROUND ── */
+    #bg {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background: #060c08;
+      transition: background 2s ease;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(70px);
+      opacity: 0.5;
+      transition: background 2s ease;
+      animation: drift 14s ease-in-out infinite alternate;
+    }
+    .orb1 { width: 340px; height: 340px; top: -80px; left: -80px; animation-duration: 16s; }
+    .orb2 { width: 260px; height: 260px; bottom: 5%; right: -60px; animation-duration: 20s; animation-delay: -6s; }
+    .orb3 { width: 200px; height: 200px; top: 38%; left: 25%; opacity: 0.28; animation-duration: 12s; animation-delay: -3s; }
+
+    @keyframes drift {
+      0%   { transform: translate(0,0) scale(1); }
+      50%  { transform: translate(22px, 32px) scale(1.06); }
+      100% { transform: translate(-18px, 12px) scale(0.94); }
+    }
+
+    /* ── SCROLL CONTAINER ── */
+    .scroll {
+      position: relative;
+      z-index: 1;
+      height: 100dvh;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      display: flex;
+      flex-direction: column;
+      padding:
+        max(env(safe-area-inset-top, 48px), 48px)
+        max(env(safe-area-inset-right, 18px), 18px)
+        max(env(safe-area-inset-bottom, 24px), 24px)
+        max(env(safe-area-inset-left, 18px), 18px);
+      gap: 13px;
+    }
+
+    /* ── GLASS BASE ── */
+    .glass {
+      background: linear-gradient(145deg, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.07) 100%);
+      backdrop-filter: blur(26px) saturate(1.9) brightness(1.08);
+      -webkit-backdrop-filter: blur(26px) saturate(1.9) brightness(1.08);
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 22px;
+      box-shadow:
+        inset 0 1.5px 0 rgba(255,255,255,0.28),
+        inset 0 -1px 0 rgba(0,0,0,0.12),
+        0 12px 40px rgba(0,0,0,0.22),
+        0 2px 6px rgba(0,0,0,0.1);
+      position: relative;
+      overflow: hidden;
+      animation: rise 0.55s cubic-bezier(0.34,1.18,0.64,1) both;
+    }
+
+    /* Top edge shimmer */
+    .glass::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 12%; right: 12%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+      pointer-events: none;
+    }
+
+    /* Inner light sheen */
+    .glass::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(145deg, rgba(255,255,255,0.08) 0%, transparent 55%);
+      pointer-events: none;
+    }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(26px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .glass:nth-child(1) { animation-delay: 0s; }
+    .glass:nth-child(2) { animation-delay: 0.08s; }
+    .glass:nth-child(3) { animation-delay: 0.16s; }
+
+    /* ── HEADER ── */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0 4px 2px;
+    }
+
+    .app-name {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+    }
+
+    .loc-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 100px;
+      padding: 5px 12px 5px 9px;
+      font-size: 12px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.6);
+      max-width: 170px;
+    }
+
+    .loc-pill svg { flex-shrink: 0; }
+
+    #location-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── INDICATOR CARD ── */
+    .ind-card { padding: 26px 24px 22px; }
+
+    .ind-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .ind-left { flex: 1; min-width: 0; }
+
+    .now-label {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.45);
+      margin-bottom: 6px;
+    }
+
+    #pollen-value {
+      font-size: 80px;
+      font-weight: 700;
+      line-height: 1;
+      letter-spacing: -4px;
+      transition: color 0.7s ease;
+    }
+
+    .pollen-unit {
+      font-size: 13px;
+      color: rgba(255,255,255,0.4);
+      margin-top: 5px;
+      letter-spacing: 0.01em;
+    }
+
+    /* Status orb */
+    .orb-btn {
+      width: 84px;
+      height: 84px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      position: relative;
+      transition: background 0.7s ease, box-shadow 0.7s ease;
+    }
+
+    .orb-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle at 32% 28%, rgba(255,255,255,0.38) 0%, rgba(255,255,255,0.04) 65%);
+    }
+
+    .orb-btn.green  {
+      background: radial-gradient(circle at 38% 32%, rgba(100,255,150,0.6), #30d158 75%);
+      box-shadow: 0 0 0 10px rgba(48,209,88,0.14), 0 4px 28px rgba(48,209,88,0.4);
+    }
+    .orb-btn.orange {
+      background: radial-gradient(circle at 38% 32%, rgba(255,220,100,0.6), #ff9f0a 75%);
+      box-shadow: 0 0 0 10px rgba(255,159,10,0.14), 0 4px 28px rgba(255,159,10,0.4);
+    }
+    .orb-btn.red {
+      background: radial-gradient(circle at 38% 32%, rgba(255,130,110,0.6), #ff453a 75%);
+      box-shadow: 0 0 0 10px rgba(255,69,58,0.14),  0 4px 28px rgba(255,69,58,0.4);
+    }
+
+    .sep {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      margin: 20px 0 16px;
+    }
+
+    .stats-row {
+      display: flex;
+    }
+
+    .stat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .stat + .stat {
+      border-left: 1px solid rgba(255,255,255,0.1);
+      padding-left: 14px;
+    }
+
+    .s-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: rgba(255,255,255,0.35);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .s-val {
+      font-size: 17px;
+      font-weight: 600;
+    }
+
+    #status-text { transition: color 0.7s ease; }
+
+    /* ── CHART CARD ── */
+    .chart-card { padding: 18px 16px 14px; }
+
+    .chart-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 14px;
+      padding: 0 4px;
+    }
+
+    .chart-title { font-size: 15px; font-weight: 600; }
+    #chart-date  { font-size: 12px; color: rgba(255,255,255,0.4); }
+
+    .chart-wrap { height: 170px; position: relative; }
+
+    canvas { display: block; width: 100% !important; height: 100% !important; }
+
+    .legend-row {
+      display: flex;
+      justify-content: center;
+      gap: 18px;
+      margin-top: 12px;
+    }
+
+    .leg {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.35);
+      font-weight: 500;
+    }
+
+    .leg-pip { width: 7px; height: 7px; border-radius: 50%; }
+
+    /* ── UPDATE ROW ── */
+    #update-time {
+      text-align: center;
+      font-size: 12px;
+      color: rgba(255,255,255,0.28);
+      padding-bottom: 2px;
+    }
+
+    /* ── SPLASH ── */
+    #splash {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      background: #080e0a;
+      transition: opacity 0.5s ease;
+    }
+
+    #splash.fade-out { opacity: 0; pointer-events: none; }
+
+    .splash-icon {
+      width: 76px; height: 76px;
+      border-radius: 20px;
+      background: linear-gradient(145deg, rgba(48,209,88,0.55), rgba(20,110,45,0.85));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 38px;
+      box-shadow: 0 10px 36px rgba(48,209,88,0.3);
+    }
+
+    .splash-title { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
+    #splash-msg   { font-size: 14px; color: rgba(255,255,255,0.5); }
+
+    .dots { display: flex; gap: 6px; }
+    .dots span {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: rgba(255,255,255,0.35);
+      animation: dp 1.2s ease-in-out infinite;
+    }
+    .dots span:nth-child(2) { animation-delay: 0.2s; }
+    .dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dp { 0%,80%,100% { transform: scale(0.7); opacity: 0.35; } 40% { transform: scale(1); opacity: 1; } }
+
+    /* ── ERROR ── */
+    .err-card {
+      padding: 30px 24px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .err-icon { font-size: 42px; }
+    .err-title { font-size: 17px; font-weight: 600; }
+    .err-msg   { font-size: 14px; color: rgba(255,255,255,0.5); line-height: 1.55; }
+
+    .retry {
+      margin-top: 10px;
+      padding: 12px 30px;
+      background: rgba(255,255,255,0.14);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 100px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .retry:active { opacity: 0.65; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- Background -->
+<div id="bg">
+  <div class="orb orb1" id="orb1"></div>
+  <div class="orb orb2" id="orb2"></div>
+  <div class="orb orb3" id="orb3"></div>
+</div>
+
+<!-- Splash -->
+<div id="splash">
+  <div class="splash-icon">🌿</div>
+  <div class="splash-title">Graspollen</div>
+  <div id="splash-msg">Locatie ophalen…</div>
+  <div class="dots"><span></span><span></span><span></span></div>
+</div>
+
+<!-- Main content -->
+<div class="scroll hidden" id="content">
+
+  <div class="header">
+    <span class="app-name">Graspollen</span>
+    <div class="loc-pill">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+        <circle cx="12" cy="9" r="2.5"/>
+      </svg>
+      <span id="location-name">–</span>
+    </div>
+  </div>
+
+  <!-- Error card -->
+  <div class="glass err-card hidden" id="err-card">
+    <div class="err-icon">⚠️</div>
+    <div class="err-title">Kan data niet laden</div>
+    <div class="err-msg" id="err-msg">Controleer locatietoestemming en verbinding.</div>
+    <button class="retry" onclick="init()">Opnieuw proberen</button>
+  </div>
+
+  <!-- Indicator card -->
+  <div class="glass ind-card" id="ind-card">
+    <div class="ind-top">
+      <div class="ind-left">
+        <div class="now-label">Nu</div>
+        <div id="pollen-value">–</div>
+        <div class="pollen-unit">korrels / m³</div>
+      </div>
+      <div class="orb-btn" id="orb-btn">🌿</div>
+    </div>
+    <div class="sep"></div>
+    <div class="stats-row">
+      <div class="stat">
+        <div class="s-label">Status</div>
+        <div class="s-val" id="status-text">–</div>
+      </div>
+      <div class="stat">
+        <div class="s-label">Piek</div>
+        <div class="s-val" id="peak-val">–</div>
+      </div>
+      <div class="stat">
+        <div class="s-label">Piek om</div>
+        <div class="s-val" id="peak-time">–</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chart card -->
+  <div class="glass chart-card">
+    <div class="chart-head">
+      <span class="chart-title">Verloop vandaag</span>
+      <span id="chart-date">–</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="pollenChart"></canvas>
+    </div>
+    <div class="legend-row">
+      <div class="leg"><div class="leg-pip" style="background:#30d158"></div>Laag ≤10</div>
+      <div class="leg"><div class="leg-pip" style="background:#ff9f0a"></div>Matig ≤30</div>
+      <div class="leg"><div class="leg-pip" style="background:#ff453a"></div>Hoog &gt;30</div>
+    </div>
+  </div>
+
+  <div id="update-time"></div>
+
+</div>
+
+<script>
+let chart = null;
+
+const THEME = {
+  green:  { hex: '#30d158', bg: '#0a4a1a #0d2e0a #083c12', orb: 'rgba(48,209,88,0.55)'  },
+  orange: { hex: '#ff9f0a', bg: '#4a2800 #3c1e00 #2e1500', orb: 'rgba(255,159,10,0.55)' },
+  red:    { hex: '#ff453a', bg: '#4a0808 #3c0606 #2e0404', orb: 'rgba(255,69,58,0.55)'  }
+};
+
+const FILL = { green: 'rgba(48,209,88,', orange: 'rgba(255,159,10,', red: 'rgba(255,69,58,' };
+const EMOJI = { green: '🌿', orange: '🌾', red: '⚠️' };
+const LABEL = { green: 'Laag', orange: 'Matig', red: 'Hoog' };
+
+function lvl(v) { return v <= 10 ? 'green' : v <= 30 ? 'orange' : 'red'; }
+function col(v) { return THEME[lvl(v)].hex; }
+
+function applyTheme(level) {
+  const bgs = THEME[level].bg.split(' ');
+  document.getElementById('bg').style.background =
+    `radial-gradient(ellipse 80% 55% at 18% 8%, ${bgs[0]} 0%, transparent 70%),
+     radial-gradient(ellipse 65% 75% at 82% 92%, ${bgs[1]} 0%, transparent 70%),
+     radial-gradient(ellipse 100% 100% at 50% 50%, ${bgs[2]} 0%, #060c08 100%)`;
+  const orbColor = THEME[level].orb;
+  ['orb1','orb2','orb3'].forEach(id =>
+    document.getElementById(id).style.background = orbColor
+  );
+}
+
+async function geocode(lat, lon) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+    const d = await r.json();
+    return d.address?.city || d.address?.town || d.address?.village || d.address?.municipality || `${lat.toFixed(2)}°`;
+  } catch { return `${lat.toFixed(2)}°`; }
+}
+
+async function getPollen(lat, lon) {
+  const r = await fetch(
+    `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=grass_pollen&timezone=auto&forecast_days=1`
+  );
+  if (!r.ok) throw new Error('API');
+  return r.json();
+}
+
+function drawChart(values, currentHour) {
+  const labels = Array.from({length:24}, (_,i) =>
+    [0,6,12,18,23].includes(i) ? i.toString().padStart(2,'0') : ''
+  );
+
+  if (chart) { chart.destroy(); chart = null; }
+
+  const canvas = document.getElementById('pollenChart');
+  const ctx = canvas.getContext('2d');
+
+  const maxV = Math.max(...values.map(v => v ?? 0));
+  const topLevel = lvl(maxV);
+  const fc = FILL[topLevel];
+
+  const grad = ctx.createLinearGradient(0, 0, 0, 150);
+  grad.addColorStop(0,   fc + '0.28)');
+  grad.addColorStop(0.7, fc + '0.07)');
+  grad.addColorStop(1,   fc + '0.0)');
+
+  chart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values.map(v => v ?? 0),
+        backgroundColor: grad,
+        fill: true,
+        tension: 0.42,
+        borderWidth: 2.5,
+        pointBackgroundColor: values.map(v => col(v ?? 0)),
+        pointBorderColor: 'rgba(255,255,255,0.12)',
+        pointBorderWidth: 1.5,
+        pointRadius: ctx => ctx.dataIndex === currentHour ? 7 : 0,
+        pointHoverRadius: 5,
+        segment: {
+          borderColor: ctx => {
+            const i = ctx.p1DataIndex;
+            const avg = ((values[i] ?? 0) + (values[Math.max(i-1,0)] ?? 0)) / 2;
+            return col(avg);
+          }
+        }
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 900, easing: 'easeOutQuart' },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(18,18,22,0.88)',
+          titleColor: 'rgba(255,255,255,0.45)',
+          bodyColor: '#fff',
+          padding: 12,
+          cornerRadius: 12,
+          displayColors: false,
+          titleFont: { family: '-apple-system,system-ui', size: 12, weight: '500' },
+          bodyFont:  { family: '-apple-system,system-ui', size: 17, weight: '600' },
+          callbacks: {
+            title: items => {
+              const raw = items[0].label;
+              const h = parseInt(raw);
+              return (isNaN(h) ? raw : h.toString().padStart(2,'0')) + ':00';
+            },
+            label: item => `${Math.round(item.raw)} korrels/m³`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.07)', drawTicks: false },
+          border: { display: false },
+          ticks: { font: { family: '-apple-system,system-ui', size: 11 }, color: 'rgba(255,255,255,0.3)', maxRotation: 0 }
+        },
+        y: {
+          min: 0,
+          grid: { color: 'rgba(255,255,255,0.07)', drawTicks: false },
+          border: { display: false },
+          ticks: { font: { family: '-apple-system,system-ui', size: 11 }, color: 'rgba(255,255,255,0.3)', maxTicksLimit: 4 }
+        }
+      }
+    }
+  });
+}
+
+function render(data, city) {
+  const vals = data.hourly.grass_pollen;
+  const now  = new Date();
+  const h    = now.getHours();
+  const val  = Math.round(vals[h] ?? 0);
+  const level = lvl(val);
+  const maxV  = Math.round(Math.max(...vals.map(v => v ?? 0)));
+  const maxH  = vals.findIndex(v => Math.round(v ?? 0) === maxV);
+
+  // Update elements
+  const pv = document.getElementById('pollen-value');
+  pv.textContent = val;
+  pv.style.color = THEME[level].hex;
+
+  const ob = document.getElementById('orb-btn');
+  ob.className = `orb-btn ${level}`;
+  ob.textContent = EMOJI[level];
+
+  const st = document.getElementById('status-text');
+  st.textContent = LABEL[level];
+  st.style.color = THEME[level].hex;
+
+  document.getElementById('peak-val').textContent  = maxV + ' k/m³';
+  document.getElementById('peak-time').textContent = maxH >= 0 ? maxH.toString().padStart(2,'0') + ':00' : '–';
+  document.getElementById('location-name').textContent = city;
+  document.getElementById('chart-date').textContent = now.toLocaleDateString('nl-NL', { weekday:'short', day:'numeric', month:'short' });
+  document.getElementById('update-time').textContent  = 'Bijgewerkt om ' + now.toLocaleTimeString('nl-NL', { hour:'2-digit', minute:'2-digit' });
+
+  applyTheme(level);
+  drawChart(vals, h);
+}
+
+async function init() {
+  document.getElementById('err-card').classList.add('hidden');
+  document.getElementById('content').classList.add('hidden');
+  const splash = document.getElementById('splash');
+  splash.style.display = 'flex';
+  splash.classList.remove('fade-out');
+  document.getElementById('splash-msg').textContent = 'Locatie ophalen…';
+
+  try {
+    const pos = await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000, maximumAge: 60000 })
+    );
+    const { latitude: lat, longitude: lon } = pos.coords;
+    document.getElementById('splash-msg').textContent = 'Pollendata laden…';
+
+    const [data, city] = await Promise.all([getPollen(lat, lon), geocode(lat, lon)]);
+
+    render(data, city);
+
+    document.getElementById('content').classList.remove('hidden');
+    splash.classList.add('fade-out');
+    setTimeout(() => { splash.style.display = 'none'; }, 520);
+
+  } catch(e) {
+    splash.style.display = 'none';
+    document.getElementById('content').classList.remove('hidden');
+    document.getElementById('err-card').classList.remove('hidden');
+    document.getElementById('err-msg').textContent =
+      e.code === 1
+        ? 'Locatietoegang geweigerd. Geef toestemming via Instellingen → Safari → Locatie.'
+        : 'Controleer je internetverbinding en probeer opnieuw.';
+  }
+}
+
+setInterval(init, 30 * 60 * 1000);
+init();
+</script>
+</body>
+</html>
