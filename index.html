@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Graspollen" />
+  <title>Graspollen</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,600&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:  #3a9e5f;
+      --orange: #e07b2a;
+      --red:    #c0392b;
+      --bg:     #f5f0e8;
+      --ink:    #1a1a18;
+      --card:   #fffdf7;
+      --border: #ddd8cc;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'DM Mono', monospace;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100dvh;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    /* ── HEADER ── */
+    header {
+      padding: 20px 24px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .app-title {
+      font-family: 'Fraunces', serif;
+      font-size: 13px;
+      font-weight: 300;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      opacity: 0.5;
+    }
+
+    .location-label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      opacity: 0.4;
+      text-align: right;
+      max-width: 160px;
+      line-height: 1.4;
+    }
+
+    /* ── BIG INDICATOR ── */
+    .indicator-wrap {
+      padding: 28px 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .pollen-pill {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 24px;
+      padding: 20px 32px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      transition: border-color 0.4s, box-shadow 0.4s;
+    }
+
+    .dot {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      background: #ccc;
+      transition: background 0.5s;
+      position: relative;
+    }
+
+    .dot::after {
+      content: '';
+      position: absolute;
+      inset: 6px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.25);
+    }
+
+    .dot.green  { background: var(--green);  box-shadow: 0 0 0 8px rgba(58,158,95,0.15); }
+    .dot.orange { background: var(--orange); box-shadow: 0 0 0 8px rgba(224,123,42,0.15); }
+    .dot.red    { background: var(--red);    box-shadow: 0 0 0 8px rgba(192,57,43,0.15); }
+
+    .indicator-text { flex: 1; }
+
+    .pollen-value {
+      font-family: 'Fraunces', serif;
+      font-size: 52px;
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      transition: color 0.4s;
+    }
+
+    .pollen-value.green  { color: var(--green);  }
+    .pollen-value.orange { color: var(--orange); }
+    .pollen-value.red    { color: var(--red);    }
+
+    .pollen-unit {
+      font-size: 11px;
+      opacity: 0.45;
+      margin-top: 3px;
+      letter-spacing: 0.06em;
+    }
+
+    .pollen-label {
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 6px;
+      transition: color 0.4s;
+    }
+
+    .pollen-label.green  { color: var(--green);  }
+    .pollen-label.orange { color: var(--orange); }
+    .pollen-label.red    { color: var(--red);    }
+
+    /* timestamp */
+    .update-time {
+      font-size: 11px;
+      opacity: 0.35;
+      letter-spacing: 0.06em;
+    }
+
+    /* ── CHART CARD ── */
+    .chart-card {
+      flex: 1;
+      margin: 0 16px 24px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 20px;
+      padding: 20px 16px 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 220px;
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chart-title {
+      font-family: 'Fraunces', serif;
+      font-size: 14px;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+    }
+
+    .chart-date {
+      font-size: 11px;
+      opacity: 0.35;
+      letter-spacing: 0.06em;
+    }
+
+    .chart-wrap {
+      flex: 1;
+      position: relative;
+      min-height: 160px;
+    }
+
+    canvas { display: block; width: 100% !important; }
+
+    /* ── LEGEND ── */
+    .legend {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      padding-bottom: 4px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      opacity: 0.55;
+      letter-spacing: 0.07em;
+    }
+
+    .legend-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+
+    /* ── LOADING / ERROR ── */
+    .status-msg {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: var(--bg);
+      z-index: 10;
+      font-size: 13px;
+      opacity: 0.6;
+      letter-spacing: 0.08em;
+      text-align: center;
+      padding: 24px;
+    }
+
+    .spinner {
+      width: 28px; height: 28px;
+      border: 2px solid var(--border);
+      border-top-color: var(--ink);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none !important; }
+
+    .retry-btn {
+      margin-top: 12px;
+      padding: 10px 24px;
+      border: 1.5px solid var(--ink);
+      border-radius: 100px;
+      background: transparent;
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      opacity: 0.7;
+    }
+
+    /* current hour marker line */
+    .now-label {
+      font-size: 10px;
+      opacity: 0.4;
+      text-align: center;
+      letter-spacing: 0.06em;
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div class="status-msg" id="loading">
+  <div class="spinner"></div>
+  <span>Locatie ophalen…</span>
+</div>
+
+<!-- ERROR -->
+<div class="status-msg hidden" id="error">
+  <span id="error-msg">Kon locatie niet ophalen</span>
+  <button class="retry-btn" onclick="init()">Opnieuw proberen</button>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="hidden" style="display:flex;flex-direction:column;flex:1;">
+
+  <header>
+    <span class="app-title">Graspollen</span>
+    <span class="location-label" id="location-label">–</span>
+  </header>
+
+  <div class="indicator-wrap">
+    <div class="pollen-pill" id="pill">
+      <div class="dot" id="dot"></div>
+      <div class="indicator-text">
+        <div class="pollen-value" id="pollen-value">–</div>
+        <div class="pollen-unit">korrels / m³</div>
+        <div class="pollen-label" id="pollen-label">–</div>
+      </div>
+    </div>
+    <div class="update-time" id="update-time"></div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <span class="chart-title">Verloop vandaag</span>
+      <span class="chart-date" id="chart-date"></span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="pollenChart"></canvas>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Laag (0–10)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>Matig (11–30)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Hoog (&gt;30)</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let chartInstance = null;
+
+function getLevel(val) {
+  if (val <= 10)  return { label: 'Laag',  cls: 'green'  };
+  if (val <= 30)  return { label: 'Matig', cls: 'orange' };
+  return            { label: 'Hoog',  cls: 'red'    };
+}
+
+function colorForValue(val) {
+  const { cls } = getLevel(val);
+  return cls === 'green' ? '#3a9e5f' : cls === 'orange' ? '#e07b2a' : '#c0392b';
+}
+
+function show(id)  { document.getElementById(id).classList.remove('hidden'); }
+function hide(id)  { document.getElementById(id).classList.add('hidden'); }
+
+async function reverseGeocode(lat, lon) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+    const d = await r.json();
+    const city = d.address?.city || d.address?.town || d.address?.village || d.address?.municipality || '';
+    const country = d.address?.country_code?.toUpperCase() || '';
+    return city ? `${city}, ${country}` : `${lat.toFixed(2)}°N ${lon.toFixed(2)}°E`;
+  } catch { return `${lat.toFixed(2)}° ${lon.toFixed(2)}`; }
+}
+
+async function fetchPollen(lat, lon) {
+  const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lon}&hourly=grass_pollen&timezone=auto&forecast_days=1`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('API fout');
+  return r.json();
+}
+
+function renderApp(data, locationName, lat, lon) {
+  const hours  = data.hourly.time;           // ISO strings
+  const values = data.hourly.grass_pollen;   // array of numbers (can be null)
+
+  // Labels 0–23
+  const labels = hours.map(t => {
+    const h = new Date(t).getHours();
+    return h === 0 ? '00:00' : h === 12 ? '12:00' : h.toString().padStart(2,'0');
+  });
+
+  const now = new Date();
+  const currentHour = now.getHours();
+  const currentVal  = values[currentHour] ?? 0;
+  const level       = getLevel(currentVal);
+
+  // DOM updates
+  document.getElementById('dot').className         = `dot ${level.cls}`;
+  document.getElementById('pollen-value').textContent = Math.round(currentVal);
+  document.getElementById('pollen-value').className    = `pollen-value ${level.cls}`;
+  document.getElementById('pollen-label').textContent  = level.label;
+  document.getElementById('pollen-label').className    = `pollen-label ${level.cls}`;
+  document.getElementById('location-label').textContent = locationName;
+  document.getElementById('update-time').textContent = `Bijgewerkt ${now.toLocaleTimeString('nl-NL', {hour:'2-digit',minute:'2-digit'})}`;
+  document.getElementById('chart-date').textContent  = now.toLocaleDateString('nl-NL', {weekday:'short', day:'numeric', month:'short'});
+
+  // Gradient colors per point
+  const pointColors = values.map(v => colorForValue(v ?? 0));
+
+  // Destroy previous chart
+  if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+
+  const ctx = document.getElementById('pollenChart').getContext('2d');
+
+  // Build gradient fill
+  const grad = ctx.createLinearGradient(0, 0, 0, 200);
+  grad.addColorStop(0,   'rgba(192,57,43,0.18)');
+  grad.addColorStop(0.4, 'rgba(224,123,42,0.12)');
+  grad.addColorStop(1,   'rgba(58,158,95,0.03)');
+
+  // Segment colors per segment
+  const segmentColors = values.map((v,i) => {
+    if (i === 0) return '#ccc';
+    const avg = ((v ?? 0) + (values[i-1] ?? 0)) / 2;
+    return colorForValue(avg);
+  });
+
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: values.map(v => v ?? 0),
+        borderColor: ctx => {
+          // Use segment plugin for multi-color line
+          return '#888';
+        },
+        borderWidth: 2.5,
+        backgroundColor: grad,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: pointColors,
+        pointBorderColor: '#fffdf7',
+        pointBorderWidth: 1.5,
+        pointRadius: (ctx) => ctx.dataIndex === currentHour ? 6 : 0,
+        pointHoverRadius: 5,
+        segment: {
+          borderColor: ctx => {
+            const i = ctx.p1DataIndex;
+            const avg = ((values[i] ?? 0) + (values[i-1] ?? 0)) / 2;
+            return colorForValue(avg);
+          }
+        }
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1a18',
+          titleColor: 'rgba(255,255,255,0.5)',
+          bodyColor: '#fff',
+          padding: 10,
+          cornerRadius: 8,
+          titleFont: { family: 'DM Mono', size: 11 },
+          bodyFont: { family: 'Fraunces', size: 16, weight: '600' },
+          callbacks: {
+            title: items => items[0].label + ':00',
+            label: item => `  ${Math.round(item.raw)} korrels/m³`,
+          }
+        },
+        annotation: { /* no plugin loaded, skip */ }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(0,0,0,0.05)', drawTicks: false },
+          border: { display: false },
+          ticks: {
+            font: { family: 'DM Mono', size: 10 },
+            color: 'rgba(26,26,24,0.35)',
+            maxTicksLimit: 9,
+            maxRotation: 0,
+          }
+        },
+        y: {
+          min: 0,
+          grid: { color: 'rgba(0,0,0,0.05)', drawTicks: false },
+          border: { display: false },
+          ticks: {
+            font: { family: 'DM Mono', size: 10 },
+            color: 'rgba(26,26,24,0.35)',
+            maxTicksLimit: 5,
+          }
+        }
+      }
+    }
+  });
+
+  // Show app
+  hide('loading');
+  hide('error');
+  const appEl = document.getElementById('app');
+  appEl.classList.remove('hidden');
+  appEl.style.display = 'flex';
+}
+
+async function init() {
+  // Reset
+  const appEl = document.getElementById('app');
+  appEl.classList.add('hidden');
+  hide('error');
+  show('loading');
+  document.getElementById('loading').querySelector('span').textContent = 'Locatie ophalen…';
+
+  try {
+    const pos = await new Promise((res, rej) => {
+      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000, maximumAge: 60000 });
+    });
+
+    const { latitude: lat, longitude: lon } = pos.coords;
+    document.getElementById('loading').querySelector('span').textContent = 'Pollendata laden…';
+
+    const [data, locationName] = await Promise.all([
+      fetchPollen(lat, lon),
+      reverseGeocode(lat, lon)
+    ]);
+
+    renderApp(data, locationName, lat, lon);
+
+  } catch(e) {
+    hide('loading');
+    show('error');
+    if (e.code === 1) {
+      document.getElementById('error-msg').textContent = 'Locatietoegang geweigerd. Geef toestemming in instellingen.';
+    } else if (e.code === 2) {
+      document.getElementById('error-msg').textContent = 'Locatie niet beschikbaar.';
+    } else {
+      document.getElementById('error-msg').textContent = 'Kon pollendata niet laden. Controleer je verbinding.';
+    }
+    console.error(e);
+  }
+}
+
+// Auto-refresh every 30 min
+setInterval(init, 30 * 60 * 1000);
+
+init();
+</script>
+</body>
+</html>
